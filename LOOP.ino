@@ -22,6 +22,8 @@ LiquidCrystal lcd(12, 11, A0, A1, A2, A3); // Analog pins as digital, not enough
 
 int position = 0; // Stepper position, stored for LCD and calculation usage
 int mode = 1; // Controller operation mode
+long encValue = 0; // Encoder value
+long newEncValue = 0; // Encoder value after processing
 
 bool end_switch_status = false; // variable to check whether end switch is active
 
@@ -58,10 +60,24 @@ void setup()
     lcd.print("Done");
     delay(500);
     lcd.clear();
+    NeoSerial.println("Controller ready.");
 }
 
 void loop()
 {
+    encValue = myEnc.read();
+    if(encValue < 0){
+        // myEnc.readAndReset();
+        encValue = 0;
+    }
+
+    NeoSerial.println(encValue + myEnc.read());
+
+    if(encValue != newEncValue){
+        newEncValue = encValue;
+    }
+    
+    newEncValue = encValue;
     switch (mode){
         case 1:
             fineAdjust();
@@ -103,8 +119,8 @@ void fineAdjust()
             stepper.setSpeed(100);
         #else
             potRead = analogRead(POT);
-            potValue = map(potRead, 0, 1023, 0, 500)
-            stepper.setSpeed()
+            potValue = map(potRead, 0, 1023, 0, 500);
+            stepper.setSpeed(potValue);
         #endif
         stepper.runSpeedToPosition();
     }
@@ -113,7 +129,17 @@ void fineAdjust()
 // Coarse adjust of capacitor to select bands faster. Will add another mode for predefined band positions
 void bandAdjust()
 {
-    stepper.setSpeed(1000); // Max speed, values above 1000 are blocked earlier in the code
+    if(position != stepper.currentPosition()){
+        stepper.moveTo(position);
+        #ifndef POT
+            stepper.setSpeed(1000);
+        #else
+            potRead = analogRead(POT);
+            potValue = map(potRead, 0, 1023, 0, 1000);
+            stepper.setSpeed(potValue);
+        #endif
+    }
+    stepper.setSpeed(1000);
 }
 
 
@@ -132,6 +158,6 @@ void Interrupt()
 {
     if(mode == 2){ mode = 0; } // Reset mode according to max modes
     ++mode;
-    NeoSerial.println("Mode change: ");
-    NeoSerial.print(mode);
+    NeoSerial.print("Mode change: ");
+    NeoSerial.println(mode);
 }
